@@ -2,6 +2,7 @@ require('dotenv').config();
 const pool = require('./db');
 const express = require('express');
 const cors = require('cors');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
@@ -9,6 +10,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/auth', authRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Barber Studio JM90 API is running' });
