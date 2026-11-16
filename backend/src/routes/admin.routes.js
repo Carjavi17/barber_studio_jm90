@@ -90,4 +90,144 @@ router.patch('/users/:id/active', async (req, res) => {
   }
 });
 
+// ---------- Blocked slots (rest days, vacations) ----------
+
+// Block a range of time. Without barberId, the whole shop is closed.
+router.post('/blocked-slots', async (req, res) => {
+  const startsAt = new Date(req.body.startsAt);
+  const endsAt = new Date(req.body.endsAt);
+  const { reason } = req.body;
+  const barberId = req.body.barberId == null ? null : Number(req.body.barberId);
+
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+    return res.status(400).json({ error: 'Las fechas de inicio y fin son obligatorias' });
+  }
+  if (endsAt <= startsAt) {
+    return res.status(400).json({ error: 'La fecha de fin debe ser posterior a la de inicio' });
+  }
+  if (barberId !== null && !Number.isInteger(barberId)) {
+    return res.status(400).json({ error: 'Id de barbero inválido' });
+  }
+
+  try {
+    if (barberId !== null) {
+      const barber = await prisma.user.findFirst({ where: { id: barberId, role: 'barber' } });
+      if (!barber) {
+        return res.status(404).json({ error: 'Barbero no encontrado' });
+      }
+    }
+
+    const blockedSlot = await prisma.blockedSlot.create({
+      data: { barberId, startsAt, endsAt, reason },
+    });
+
+    // Appointments already booked inside the block are NOT cancelled automatically
+    const affectedAppointments = await prisma.appointment.findMany({
+      where: {
+        status: { not: 'cancelled' },
+        startsAt: { gte: startsAt, lt: endsAt },
+        ...(barberId !== null && { barberId }),
+      },
+      include: {
+        client: { select: { id: true, name: true, phone: true } },
+        barber: { select: { id: true, name: true } },
+      },
+      orderBy: { startsAt: 'asc' },
+    });
+
+    res.status(201).json({ blockedSlot, affectedAppointments });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// List current and upcoming blocks
+router.get('/blocked-slots', async (req, res) => {
+  try {
+    const blockedSlots = await prisma.blockedSlot.findMany({
+      where: { endsAt: { gte: new Date() } },
+      include: { barber: { select: { id: true, name: true } } },
+      orderBy: { startsAt: 'asc' },
+    });
+    res.json(blockedSlots);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// Remove a block (the slots become free again)
+router.delete('/blocked-slots/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Id inválido' });
+  }
+
+  try {
+    await prisma.blockedSlot.delete({ where: { id } });
+    res.status(204).end();
+  } catch (error) {
+    // P2025 = record not found
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Bloqueo no encontrado' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ---------- Offers ----------
+
+router.post('/offers', async (req, res) => {
+  const { imageUrl, title } = req.body;
+
+  if (!/^https?:\/\//.test(imageUrl || '')) {
+    return res.status(400).json({ error: 'La imagen debe ser una dirección web (http o https)' });
+  }
+
+  try {
+    const offer = await prisma.offer.create({ data: { imageUrl, title } });
+    res.status(201).json(offer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// All offers, including inactive ones
+router.get('/offers', async (req, res) => {
+  try {
+    const offers = await prisma.offer.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(offers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// Show or hide an offer
+router.patch('/offers/:id/active', async (req, res) => {
+  const id = Number(req.params.id);
+  const { isActive } = req.body;
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Id inválido' });
+  }
+  if (typeof isActive !== 'boolean') {
+    return res.status(400).json({ error: 'El valor isActive debe ser true o false' });
+  }
+
+  try {
+    const offer = await prisma.offer.update({ where: { id }, data: { isActive } });
+    res.json(offer);
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Oferta no encontrada' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
 export default router;
