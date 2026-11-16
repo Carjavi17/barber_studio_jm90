@@ -1,9 +1,11 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const pool = require('../db');
-const { authenticate, requireRole } = require('../middleware/auth');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import { prisma } from '../lib/prisma.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+const ROLES = ['client', 'barber', 'admin'];
 
 // Every route in this file requires an admin
 router.use(authenticate, requireRole('admin'));
@@ -18,15 +20,15 @@ router.post('/barbers', async (req, res) => {
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      `INSERT INTO users (name, email, phone, password_hash, role)
-       VALUES ($1, $2, $3, $4, 'barber')
-       RETURNING id, name, email, role`,
-      [name, email.toLowerCase(), phone, passwordHash]
-    );
-    res.status(201).json(result.rows[0]);
+
+    const barber = await prisma.user.create({
+      data: { name, email: email.toLowerCase(), phone, passwordHash, role: 'barber' },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    res.status(201).json(barber);
   } catch (error) {
-    if (error.code === '23505') {
+    if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Ese email ya está registrado' });
     }
     console.error(error);
@@ -38,13 +40,17 @@ router.post('/barbers', async (req, res) => {
 router.get('/users', async (req, res) => {
   const role = req.query.role || 'client';
 
+  if (!ROLES.includes(role)) {
+    return res.status(400).json({ error: 'Rol inválido' });
+  }
+
   try {
-    const result = await pool.query(
-      `SELECT id, name, email, phone, role, is_active
-       FROM users WHERE role = $1 ORDER BY name`,
-      [role]
-    );
-    res.json(result.rows);
+    const users = await prisma.user.findMany({
+      where: { role },
+      select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json(users);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error del servidor' });
@@ -53,28 +59,35 @@ router.get('/users', async (req, res) => {
 
 // Activate or deactivate a user
 router.patch('/users/:id/active', async (req, res) => {
-  const { is_active } = req.body;
+  const id = Number(req.params.id);
+  const { isActive } = req.body;
 
-  if (typeof is_active !== 'boolean') {
-    return res.status(400).json({ error: 'El valor is_active debe ser true o false' });
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Id inválido' });
+  }
+  if (typeof isActive !== 'boolean') {
+    return res.status(400).json({ error: 'El valor isActive debe ser true o false' });
   }
 
   try {
-    const result = await pool.query(
-      `UPDATE users SET is_active = $1
-       WHERE id = $2 AND role <> 'admin'
-       RETURNING id, name, role, is_active`,
-      [is_active, req.params.id]
-    );
-
-    if (result.rowCount === 0) {
+    // Admins can't be deactivated
+    const user = await prisma.user.findFirst({
+      where: { id, role: { not: 'admin' } },
+    });
+    if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
-    res.json(result.rows[0]);
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { isActive },
+      select: { id: true, name: true, role: true, isActive: true },
+    });
+    res.json(updated);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });
 
-module.exports = router;
+export default router;

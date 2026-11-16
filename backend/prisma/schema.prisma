@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  client
+  barber
+  admin
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String   @map("password_hash")
+  role         Role     @default(client)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  clientAppointments Appointment[] @relation("ClientAppointments")
+  barberAppointments Appointment[] @relation("BarberAppointments")
+  blockedSlots       BlockedSlot[]
+
+  @@map("users")
+}
+
+model Appointment {
+  id        Int               @id @default(autoincrement())
+  clientId  Int               @map("client_id")
+  barberId  Int               @map("barber_id")
+  startsAt  DateTime          @map("starts_at") @db.Timestamptz()
+  status    AppointmentStatus @default(pending)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+
+  client User @relation("ClientAppointments", fields: [clientId], references: [id])
+  barber User @relation("BarberAppointments", fields: [barberId], references: [id])
+
+  @@map("appointments")
+}
+
+model BlockedSlot {
+  id       Int      @id @default(autoincrement())
+  barberId Int?     @map("barber_id")
+  startsAt DateTime @map("starts_at") @db.Timestamptz()
+  endsAt   DateTime @map("ends_at") @db.Timestamptz()
+  reason   String?
+
+  barber User? @relation(fields: [barberId], references: [id])
+
+  @@map("blocked_slots")
+}
+
+model Offer {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String   @map("image_url")
+  title     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("offers")
+}

@@ -1,7 +1,7 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
 
@@ -18,17 +18,15 @@ router.post('/register', async (req, res) => {
   try {
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      `INSERT INTO users (name, email, phone, password_hash)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, role`,
-      [name, email.toLowerCase(), phone, passwordHash]
-    );
+    const user = await prisma.user.create({
+      data: { name, email: email.toLowerCase(), phone, passwordHash },
+      select: { id: true, name: true, email: true, role: true },
+    });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(user);
   } catch (error) {
-    // 23505 = unique violation (email already exists)
-    if (error.code === '23505') {
+    // P2002 = unique constraint failed (email already exists)
+    if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Ese email ya está registrado' });
     }
     console.error(error);
@@ -44,15 +42,16 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
-    const user = result.rows[0];
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
 
-    const passwordMatches = user && (await bcrypt.compare(password, user.password_hash));
+    const passwordMatches = user && (await bcrypt.compare(password, user.passwordHash));
     if (!passwordMatches) {
       return res.status(401).json({ error: 'Email o contraseña incorrectos' });
     }
 
-    if (!user.is_active) {
+    if (!user.isActive) {
       return res.status(403).json({ error: 'Tu cuenta está desactivada' });
     }
 
@@ -72,4 +71,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

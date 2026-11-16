@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
+import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma.js';
 
 // Checks the token and loads the user from the database
 async function authenticate(req, res, next) {
@@ -13,13 +13,12 @@ async function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    const result = await pool.query(
-      'SELECT id, name, email, role, is_active FROM users WHERE id = $1',
-      [payload.id]
-    );
-    const user = result.rows[0];
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, name: true, email: true, role: true, isActive: true },
+    });
 
-    if (!user || !user.is_active) {
+    if (!user || !user.isActive) {
       return res.status(403).json({ error: 'Tu cuenta está desactivada' });
     }
 
@@ -40,4 +39,4 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { authenticate, requireRole };
+export { authenticate, requireRole };
