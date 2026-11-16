@@ -18,6 +18,10 @@ router.post('/barbers', async (req, res) => {
     return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
   }
 
+    if (password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  }
+
   try {
     const passwordHash = await bcrypt.hash(password, 10);
 
