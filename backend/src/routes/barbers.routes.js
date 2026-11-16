@@ -1,7 +1,7 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
-import config from '../config.js';
+import { getFreeSlots } from '../services/slots.js';
 
 const router = express.Router();
 
@@ -42,32 +42,7 @@ router.get('/:id/slots', async (req, res) => {
       return res.status(404).json({ error: 'Barbero no encontrado' });
     }
 
-    const { OPENING_TIME, CLOSING_TIME, SLOT_MINUTES, SHOP_TIMEZONE } = config;
-
-    const rows = await prisma.$queryRaw`
-      SELECT slot
-      FROM generate_series(
-        (${date}::date + ${OPENING_TIME}::time) AT TIME ZONE ${SHOP_TIMEZONE},
-        (${date}::date + ${CLOSING_TIME}::time - make_interval(mins => ${SLOT_MINUTES}::int)) AT TIME ZONE ${SHOP_TIMEZONE},
-        make_interval(mins => ${SLOT_MINUTES}::int)
-      ) AS slot
-      WHERE slot > NOW()
-        AND NOT EXISTS (
-          SELECT 1 FROM appointments a
-          WHERE a.barber_id = ${barberId}::int
-            AND a.starts_at = slot
-            AND a.status <> 'cancelled'
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM blocked_slots b
-          WHERE (b.barber_id = ${barberId}::int OR b.barber_id IS NULL)
-            AND slot >= b.starts_at
-            AND slot < b.ends_at
-        )
-      ORDER BY slot
-    `;
-
-    res.json(rows.map((row) => row.slot));
+    res.json(await getFreeSlots(barberId, date));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error del servidor' });
