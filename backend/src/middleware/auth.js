@@ -19,7 +19,7 @@ async function authenticate(req, res, next) {
     });
 
     if (!user || !user.isActive) {
-      return res.status(403).json({ error: 'Tu cuenta está desactivada' });
+      return res.status(401).json({ error: 'Tu cuenta está desactivada' });
     }
 
     req.user = user;
