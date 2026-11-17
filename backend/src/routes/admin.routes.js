@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import config from '../config.js';
+import { reviewSelect, toDto } from '../services/reviews.js';
 
 const router = express.Router();
 const ROLES = ['client', 'barber', 'admin'];
@@ -346,6 +347,51 @@ router.patch('/services/:id', async (req, res) => {
       return res.status(404).json({ error: 'Servicio no encontrado' });
     }
     console.error(e);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ---------- Reviews moderation ----------
+
+// All reviews, including hidden ones, with the authors' full names
+router.get('/reviews', async (req, res) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      select: reviewSelect,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    res.json(reviews.map((r) => toDto(r, req.user.id, { fullName: true })));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// Hide or show a review
+router.patch('/reviews/:id/visible', async (req, res) => {
+  const id = Number(req.params.id);
+  const { isVisible } = req.body;
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Id inválido' });
+  }
+  if (typeof isVisible !== 'boolean') {
+    return res.status(400).json({ error: 'El valor isVisible debe ser true o false' });
+  }
+
+  try {
+    const review = await prisma.review.update({
+      where: { id },
+      data: { isVisible },
+      select: reviewSelect,
+    });
+    res.json(toDto(review, req.user.id, { fullName: true }));
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Reseña no encontrada' });
+    }
+    console.error(error);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });

@@ -5,10 +5,10 @@ import { prisma } from './lib/prisma.js';
 import authRoutes from './routes/auth.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import barberRoutes from './routes/barbers.routes.js';
-import { authenticate } from './middleware/auth.js';
 import appointmentRoutes from './routes/appointments.routes.js';
-import offerRoutes from './routes/offers.routes.js';
 import serviceRoutes from './routes/services.routes.js';
+import reviewRoutes from './routes/reviews.routes.js';
+import { authenticate } from './middleware/auth.js';
 
 const app = express();
 
@@ -19,8 +19,8 @@ app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/barbers', barberRoutes);
 app.use('/appointments', appointmentRoutes);
-app.use('/offers', offerRoutes);
 app.use('/services', serviceRoutes);
+app.use('/reviews', reviewRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Barber Studio JM90 API is running' });
