@@ -203,59 +203,6 @@ router.delete('/blocked-slots/:id', async (req, res) => {
   }
 });
 
-// ---------- Offers ----------
-
-router.post('/offers', async (req, res) => {
-  const { imageUrl, title } = req.body;
-
-  if (!/^https?:\/\//.test(imageUrl || '')) {
-    return res.status(400).json({ error: 'La imagen debe ser una dirección web (http o https)' });
-  }
-
-  try {
-    const offer = await prisma.offer.create({ data: { imageUrl, title } });
-    res.status(201).json(offer);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error del servidor' });
-  }
-});
-
-// All offers, including inactive ones
-router.get('/offers', async (req, res) => {
-  try {
-    const offers = await prisma.offer.findMany({ orderBy: { createdAt: 'desc' } });
-    res.json(offers);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error del servidor' });
-  }
-});
-
-// Show or hide an offer
-router.patch('/offers/:id/active', async (req, res) => {
-  const id = Number(req.params.id);
-  const { isActive } = req.body;
-
-  if (!Number.isInteger(id)) {
-    return res.status(400).json({ error: 'Id inválido' });
-  }
-  if (typeof isActive !== 'boolean') {
-    return res.status(400).json({ error: 'El valor isActive debe ser true o false' });
-  }
-
-  try {
-    const offer = await prisma.offer.update({ where: { id }, data: { isActive } });
-    res.json(offer);
-  } catch (error) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Oferta no encontrada' });
-    }
-    console.error(error);
-    res.status(500).json({ error: 'Error del servidor' });
-  }
-});
-
 // Edit a client or barber. The password is optional: send it only to change it.
 router.patch('/users/:id', async (req, res) => {
   const id = Number(req.params.id);
@@ -311,6 +258,94 @@ router.patch('/users/:id', async (req, res) => {
       return res.status(409).json({ error: 'Ese email ya está registrado' });
     }
     console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ---------- Services (name, duration, price) ----------
+
+const MAX_DURATION = 240;
+
+// Validates the fields that were sent. With requireAll, name, duration and price are mandatory.
+function validateService(body, { requireAll }) {
+  const data = {};
+
+  if (body.name !== undefined || requireAll) {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
+      return { error: 'El nombre es obligatorio' };
+    }
+    data.name = body.name.trim();
+  }
+  if (body.durationMinutes !== undefined || requireAll) {
+    const duration = Number(body.durationMinutes);
+    if (!Number.isInteger(duration) || duration <= 0 || duration > MAX_DURATION || duration % config.SLOT_MINUTES !== 0) {
+      return { error: `La duración debe ser múltiplo de ${config.SLOT_MINUTES} minutos (máximo ${MAX_DURATION})` };
+    }
+    data.durationMinutes = duration;
+  }
+  if (body.price !== undefined || requireAll) {
+    const price = Number(body.price);
+    if (!Number.isInteger(price) || price < 0) {
+      return { error: 'El precio debe ser un número entero de pesos' };
+    }
+    data.price = price;
+  }
+  if (body.isActive !== undefined) {
+    if (typeof body.isActive !== 'boolean') {
+      return { error: 'El valor isActive debe ser true o false' };
+    }
+    data.isActive = body.isActive;
+  }
+
+  return { data };
+}
+
+// All services, including hidden ones
+router.get('/services', async (req, res) => {
+  try {
+    res.json(await prisma.service.findMany({ orderBy: { id: 'asc' } }));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+router.post('/services', async (req, res) => {
+  const { data, error } = validateService(req.body, { requireAll: true });
+  if (error) {
+    return res.status(400).json({ error });
+  }
+
+  try {
+    res.status(201).json(await prisma.service.create({ data }));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// Edit a service, or hide/show it with isActive. Existing appointments keep their original name and price.
+router.patch('/services/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Id inválido' });
+  }
+
+  const { data, error } = validateService(req.body, { requireAll: false });
+  if (error) {
+    return res.status(400).json({ error });
+  }
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No hay cambios para guardar' });
+  }
+
+  try {
+    res.json(await prisma.service.update({ where: { id }, data }));
+  } catch (e) {
+    if (e.code === 'P2025') {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
+    console.error(e);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });

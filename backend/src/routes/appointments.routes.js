@@ -10,36 +10,53 @@ router.use(authenticate);
 // Book an appointment (clients only)
 router.post('/', requireRole('client'), async (req, res) => {
   const barberId = Number(req.body.barberId);
+  const serviceId = Number(req.body.serviceId);
   const startsAt = new Date(req.body.startsAt);
 
-  if (!Number.isInteger(barberId) || Number.isNaN(startsAt.getTime())) {
-    return res.status(400).json({ error: 'Barbero y horario son obligatorios' });
+  if (!Number.isInteger(barberId) || !Number.isInteger(serviceId) || Number.isNaN(startsAt.getTime())) {
+    return res.status(400).json({ error: 'Servicio, barbero y horario son obligatorios' });
   }
 
   try {
-    const barber = await prisma.user.findFirst({
-      where: { id: barberId, role: 'barber', isActive: true },
-    });
+    const [barber, service] = await Promise.all([
+      prisma.user.findFirst({ where: { id: barberId, role: 'barber', isActive: true } }),
+      prisma.service.findFirst({ where: { id: serviceId, isActive: true } }),
+    ]);
     if (!barber) {
       return res.status(404).json({ error: 'Barbero no encontrado' });
     }
+    if (!service) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
 
-    // The requested time must be one of the free slots for that day
-    const freeSlots = await getFreeSlots(barberId, toShopDate(startsAt));
+    // The requested time must be one of the free start times for that service
+    const freeSlots = await getFreeSlots(barberId, toShopDate(startsAt), service.durationMinutes);
     const isFree = freeSlots.some((slot) => slot.getTime() === startsAt.getTime());
     if (!isFree) {
       return res.status(409).json({ error: 'Ese horario ya no está disponible' });
     }
 
+    const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60 * 1000);
+
+    // The appointment keeps a copy of the service name and price at booking time
     const appointment = await prisma.appointment.create({
-      data: { clientId: req.user.id, barberId, startsAt },
+      data: {
+        clientId: req.user.id,
+        barberId,
+        serviceId,
+        serviceName: service.name,
+        price: service.price,
+        startsAt,
+        endsAt,
+      },
       include: { barber: { select: { id: true, name: true } } },
     });
 
     res.status(201).json(appointment);
   } catch (error) {
-    // Two clients booking the same slot at the same moment
-    if (error.code === 'P2002') {
+    // Two clients booking overlapping times at the same moment: the database rejects the second.
+    // I'm not sure which exact error code Prisma gives for this constraint, so I also check the message.
+    if (error.code === 'P2002' || /exclusion|no_overlapping_appointments/i.test(error.message || '')) {
       return res.status(409).json({ error: 'Ese horario ya no está disponible' });
     }
     console.error(error);

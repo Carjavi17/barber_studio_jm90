@@ -8,6 +8,7 @@ import barberRoutes from './routes/barbers.routes.js';
 import { authenticate } from './middleware/auth.js';
 import appointmentRoutes from './routes/appointments.routes.js';
 import offerRoutes from './routes/offers.routes.js';
+import serviceRoutes from './routes/services.routes.js';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/admin', adminRoutes);
 app.use('/barbers', barberRoutes);
 app.use('/appointments', appointmentRoutes);
 app.use('/offers', offerRoutes);
+app.use('/services', serviceRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Barber Studio JM90 API is running' });
