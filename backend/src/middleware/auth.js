@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
+import { requireRole } from './roles.js';
 
 // Checks the token and loads the user from the database
 async function authenticate(req, res, next) {
@@ -27,16 +28,6 @@ async function authenticate(req, res, next) {
   } catch (error) {
     res.status(401).json({ error: 'Sesión inválida o vencida' });
   }
-}
-
-// Allows only the listed roles, e.g. requireRole('admin')
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'No tienes permiso para hacer esto' });
-    }
-    next();
-  };
 }
 
 export { authenticate, requireRole };

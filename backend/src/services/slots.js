@@ -34,8 +34,3 @@ export async function getFreeSlots(barberId, date, durationMinutes) {
 
   return rows.map((row) => new Date(row.slot_utc));
 }
-
-// Converts a Date to the shop's local date string (YYYY-MM-DD)
-export function toShopDate(date) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: config.SHOP_TIMEZONE }).format(date);
-}

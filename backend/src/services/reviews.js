@@ -1,5 +1,6 @@
+
 // "Carlos Guerra" -> "Carlos G."
-function publicName(fullName) {
+export function publicName(fullName) {
   const parts = fullName.trim().split(/\s+/);
   return parts.length > 1 ? `${parts[0]} ${parts[1][0].toUpperCase()}.` : parts[0];
 }

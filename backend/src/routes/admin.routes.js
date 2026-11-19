@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import config from '../config.js';
 import { reviewSelect, toDto } from '../services/reviews.js';
+import { validateService } from '../utils/validation.js';
 
 const router = express.Router();
 const ROLES = ['client', 'barber', 'admin'];
@@ -262,44 +263,6 @@ router.patch('/users/:id', async (req, res) => {
     res.status(500).json({ error: 'Error del servidor' });
   }
 });
-
-// ---------- Services (name, duration, price) ----------
-
-const MAX_DURATION = 240;
-
-// Validates the fields that were sent. With requireAll, name, duration and price are mandatory.
-function validateService(body, { requireAll }) {
-  const data = {};
-
-  if (body.name !== undefined || requireAll) {
-    if (typeof body.name !== 'string' || !body.name.trim()) {
-      return { error: 'El nombre es obligatorio' };
-    }
-    data.name = body.name.trim();
-  }
-  if (body.durationMinutes !== undefined || requireAll) {
-    const duration = Number(body.durationMinutes);
-    if (!Number.isInteger(duration) || duration <= 0 || duration > MAX_DURATION || duration % config.SLOT_MINUTES !== 0) {
-      return { error: `La duración debe ser múltiplo de ${config.SLOT_MINUTES} minutos (máximo ${MAX_DURATION})` };
-    }
-    data.durationMinutes = duration;
-  }
-  if (body.price !== undefined || requireAll) {
-    const price = Number(body.price);
-    if (!Number.isInteger(price) || price < 0) {
-      return { error: 'El precio debe ser un número entero de pesos' };
-    }
-    data.price = price;
-  }
-  if (body.isActive !== undefined) {
-    if (typeof body.isActive !== 'boolean') {
-      return { error: 'El valor isActive debe ser true o false' };
-    }
-    data.isActive = body.isActive;
-  }
-
-  return { data };
-}
 
 // All services, including hidden ones
 router.get('/services', async (req, res) => {

@@ -1,7 +1,8 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import { getFreeSlots, toShopDate } from '../services/slots.js';
+import { getFreeSlots } from '../services/slots.js';
+import { toShopDate } from '../utils/time.js';
 
 const router = express.Router();
 

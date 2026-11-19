@@ -2,23 +2,11 @@ import express from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { reviewSelect, toDto } from '../services/reviews.js';
+import { validateReview } from '../utils/validation.js';
 
 const router = express.Router();
 
 router.use(authenticate);
-
-const MAX_COMMENT = 500;
-
-// Returns an error message, or null when rating and comment are valid
-function validateReview(rating, comment) {
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return 'La calificación debe ser de 1 a 5 estrellas';
-  }
-  if (comment.length > MAX_COMMENT) {
-    return `El comentario no puede superar los ${MAX_COMMENT} caracteres`;
-  }
-  return null;
-}
 
 const readComment = (body) => (typeof body.comment === 'string' ? body.comment.trim() : '');
 
