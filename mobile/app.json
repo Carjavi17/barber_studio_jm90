@@ -12,9 +12,9 @@
     "android": {
       "package": "com.jm90.barberstudio",
       "adaptiveIcon": {
-            "foregroundImage": "./assets/adaptive-icon.png",
-            "backgroundColor": "#141414",
-            "monochromeImage": "./assets/monochrome-icon.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#141414",
+        "monochromeImage": "./assets/monochrome-icon.png"
       }
     },
     "web": {
@@ -24,6 +24,11 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ab1e3ef2-1934-45a7-8ae9-7d83aca7ad7d"
+      }
+    }
   }
 }
