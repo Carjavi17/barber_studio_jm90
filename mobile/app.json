@@ -12,7 +12,9 @@
     "android": {
       "package": "com.jm90.barberstudio",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE"
+            "foregroundImage": "./assets/adaptive-icon.png",
+            "backgroundColor": "#141414",
+            "monochromeImage": "./assets/monochrome-icon.png"
       }
     },
     "web": {
