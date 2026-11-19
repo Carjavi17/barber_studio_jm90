@@ -1,1 +1,1 @@
-export const API_URL = 'http://192.168.0.157:3000';
+export const API_URL = 'https://barber-studio-jm90.onrender.com';
